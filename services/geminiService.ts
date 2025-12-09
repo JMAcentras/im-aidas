@@ -6,7 +6,11 @@ import { GeminiResponse, Connection, SwipeCard } from '../types';
 const GROQ_API_KEY = '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';
 // Using Groq-hosted OpenAI GPT OSS 120B (largest OpenAI-branded option available).
 const modelName = 'openai/gpt-oss-120b';
-const groq = new Groq({ apiKey: GROQ_API_KEY });
+const groq = new Groq({
+  apiKey: GROQ_API_KEY,
+  // Frontend-only app, allow browser usage despite key exposure being unavoidable.
+  dangerouslyAllowBrowser: true,
+});
 
 function parseJsonContent(content: string) {
   const cleaned = (content ?? '').trim().replace(/^```json\s*/i, '').replace(/\s*```$/i, '');
