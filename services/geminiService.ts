@@ -1,14 +1,29 @@
 
-import { GoogleGenAI, Type } from '@google/genai';
+import Groq from 'groq-sdk';
 import { GeminiResponse, Connection, SwipeCard } from '../types';
 
-if (!process.env.API_KEY) {
-  throw new Error("API_KEY environment variable not set");
+// Groq key is embedded because this runs fully in the browser.
+const GROQ_API_KEY = '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';
+// Using Groq-hosted OpenAI GPT OSS 120B (largest OpenAI-branded option available).
+const modelName = 'openai/gpt-oss-120b';
+const groq = new Groq({ apiKey: GROQ_API_KEY });
+
+function parseJsonContent(content: string) {
+  const cleaned = (content ?? '').trim().replace(/^```json\s*/i, '').replace(/\s*```$/i, '');
+  return JSON.parse(cleaned);
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+async function createJsonCompletion(prompt: string, temperature = 0.8, forceObject = false) {
+  const completion = await groq.chat.completions.create({
+    model: modelName,
+    messages: [{ role: 'user', content: prompt }],
+    temperature,
+    ...(forceObject ? { response_format: { type: 'json_object' } } : {}),
+  });
 
-const modelName = 'gemini-2.5-flash';
+  const message = completion.choices[0]?.message?.content || '';
+  return parseJsonContent(message);
+}
 
 export async function generateInterestProfile(interests: string, currentProfileContext?: string): Promise<GeminiResponse> {
   const prompt = `
@@ -26,78 +41,9 @@ export async function generateInterestProfile(interests: string, currentProfileC
     Return the response in a structured JSON format.
   `;
 
-  const responseSchema = {
-    type: Type.OBJECT,
-    properties: {
-      profile: {
-        type: Type.OBJECT,
-        properties: {
-          name: { type: Type.STRING },
-          summary: { type: Type.STRING },
-          lookingFor: { type: Type.STRING },
-          offering: { type: Type.STRING },
-          interests: { 
-            type: Type.ARRAY, 
-            items: { type: Type.STRING },
-            description: "Extract 5-7 short keyword tags from the user's interests."
-          }
-        },
-        required: ['name', 'summary', 'lookingFor', 'offering', 'interests']
-      },
-      connections: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING },
-            bio: { type: Type.STRING },
-            sharedInterests: { type: Type.ARRAY, items: { type: Type.STRING } }
-          },
-          required: ['name', 'bio', 'sharedInterests']
-        }
-      },
-      groups: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING },
-            description: { type: Type.STRING },
-            posts: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  author: { type: Type.STRING },
-                  content: { type: Type.STRING },
-                  timeAgo: { type: Type.STRING }
-                },
-                required: ['author', 'content', 'timeAgo']
-              }
-            }
-          },
-          required: ['name', 'description', 'posts']
-        }
-      }
-    },
-    required: ['profile', 'connections', 'groups']
-  };
-
   try {
-    const result = await ai.models.generateContent({
-      model: modelName,
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: responseSchema,
-        temperature: 0.8,
-      },
-    });
+    const parsedData = await createJsonCompletion(prompt, 0.8, true);
 
-    const jsonText = result.text.trim();
-    const cleanedJsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    const parsedData = JSON.parse(cleanedJsonText);
-    
     return {
       profile: {
         ...parsedData.profile,
@@ -115,29 +61,9 @@ export async function generateInterestProfile(interests: string, currentProfileC
 
 export async function generateRandomConnection(interests: string): Promise<Connection> {
   const prompt = `Based on these interests: "${interests}", generate ONE unique, random fictional user persona that would be an interesting match. JSON format.`;
-  
-  const responseSchema = {
-    type: Type.OBJECT,
-    properties: {
-      name: { type: Type.STRING },
-      bio: { type: Type.STRING },
-      sharedInterests: { type: Type.ARRAY, items: { type: Type.STRING } }
-    },
-    required: ['name', 'bio', 'sharedInterests']
-  };
 
-  const result = await ai.models.generateContent({
-    model: modelName,
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: responseSchema,
-      temperature: 1.0,
-    },
-  });
-
-   const cleanedJsonText = result.text.trim().replace(/^```json\s*/, '').replace(/\s*```$/, '');
-   return JSON.parse(cleanedJsonText);
+  const parsed = await createJsonCompletion(prompt, 1.0, true);
+  return parsed as Connection;
 }
 
 export async function generateSwipeDeck(theme: string): Promise<SwipeCard[]> {
@@ -157,34 +83,8 @@ export async function generateSwipeDeck(theme: string): Promise<SwipeCard[]> {
     Content should be engaging, short, and formatted for a mobile card.
   `;
 
-  const responseSchema = {
-    type: Type.ARRAY,
-    items: {
-      type: Type.OBJECT,
-      properties: {
-        id: { type: Type.STRING },
-        type: { type: Type.STRING, enum: ['person', 'quote', 'fact', 'joke'] },
-        content: { type: Type.STRING },
-        subContent: { type: Type.STRING },
-        theme: { type: Type.STRING },
-        rarity: { type: Type.STRING, enum: ['common', 'rare', 'legendary'] }
-      },
-      required: ['id', 'type', 'content', 'theme', 'rarity']
-    }
-  };
-
-  const result = await ai.models.generateContent({
-    model: modelName,
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: responseSchema,
-      temperature: 1.1,
-    },
-  });
-
-  const cleanedJsonText = result.text.trim().replace(/^```json\s*/, '').replace(/\s*```$/, '');
-  return JSON.parse(cleanedJsonText);
+  const parsed = await createJsonCompletion(prompt, 1.1, false);
+  return parsed as SwipeCard[];
 }
 
 export async function generateLiveChatMatch(theme: string, userKarma: number): Promise<{ name: string, message: string }> {
@@ -204,25 +104,6 @@ export async function generateLiveChatMatch(theme: string, userKarma: number): P
     Return JSON.
   `;
 
-  const responseSchema = {
-    type: Type.OBJECT,
-    properties: {
-      name: { type: Type.STRING },
-      message: { type: Type.STRING }
-    },
-    required: ['name', 'message']
-  };
-
-  const result = await ai.models.generateContent({
-    model: modelName,
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: responseSchema,
-      temperature: 1.0,
-    },
-  });
-
-  const cleanedJsonText = result.text.trim().replace(/^```json\s*/, '').replace(/\s*```$/, '');
-  return JSON.parse(cleanedJsonText);
+  const parsed = await createJsonCompletion(prompt, 1.0, true);
+  return parsed as { name: string; message: string };
 }
