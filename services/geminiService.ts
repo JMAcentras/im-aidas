@@ -64,10 +64,14 @@ export async function generateInterestProfile(interests: string, currentProfileC
 }
 
 export async function generateRandomConnection(interests: string): Promise<Connection> {
-  const prompt = `Based on these interests: "${interests}", generate ONE unique, random fictional user persona that would be an interesting match. JSON format.`;
+  const prompt = `Based on these interests: "${interests}", return JSON with fields { "name": string, "bio": string, "sharedInterests": string[] }. No prose.`;
 
   const parsed = await createJsonCompletion(prompt, 1.0, true);
-  return parsed as Connection;
+  return {
+    name: parsed.name || 'Mysterious Match',
+    bio: parsed.bio || 'A curious explorer with similar interests.',
+    sharedInterests: Array.isArray(parsed.sharedInterests) ? parsed.sharedInterests : [],
+  };
 }
 
 export async function generateSwipeDeck(theme: string): Promise<SwipeCard[]> {
@@ -85,10 +89,17 @@ export async function generateSwipeDeck(theme: string): Promise<SwipeCard[]> {
     Assign a 'rarity' (common, rare, legendary) randomly.
     
     Content should be engaging, short, and formatted for a mobile card.
+
+    Respond ONLY with JSON object:
+    {
+      "cards": [
+        { "id": "...", "type": "person|quote|fact|joke", "content": "...", "subContent": "...", "theme": "${theme}", "rarity": "common|rare|legendary" }
+      ]
+    }
   `;
 
-  const parsed = await createJsonCompletion(prompt, 1.1, false);
-  return parsed as SwipeCard[];
+  const parsed = await createJsonCompletion(prompt, 1.1, true);
+  return Array.isArray(parsed.cards) ? parsed.cards : [];
 }
 
 export async function generateLiveChatMatch(theme: string, userKarma: number): Promise<{ name: string, message: string }> {
@@ -109,5 +120,8 @@ export async function generateLiveChatMatch(theme: string, userKarma: number): P
   `;
 
   const parsed = await createJsonCompletion(prompt, 1.0, true);
-  return parsed as { name: string; message: string };
+  return {
+    name: parsed.name || 'Live Friend',
+    message: parsed.message || `Hey! Just hopped into the ${theme} room.`,
+  };
 }

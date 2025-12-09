@@ -155,9 +155,9 @@ const App: React.FC = () => {
         
         const newConv: Conversation = {
             id: 'live-' + Date.now(),
-            name: match.name,
-            avatarChar: match.name.charAt(0),
-            lastMessage: match.message,
+            name: match.name || 'Live Friend',
+            avatarChar: (match.name || 'L').charAt(0),
+            lastMessage: match.message || 'Hello!',
             unreadCount: 1,
             isLive: true,
             themeContext: theme,
