@@ -1,0 +1,5 @@
+{
+  "name": "02 InterestMeet",
+  "description": "An application that helps you find new connections by generating a creative profile and suggesting potential matches based on your interests, powered by Gemini.",
+  "requestFramePermissions": []
+}
